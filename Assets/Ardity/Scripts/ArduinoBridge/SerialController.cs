@@ -9,6 +9,7 @@
 using UnityEngine;
 using System.Threading;
 using System;
+using System.IO;
 using System.IO.Ports;
 using UnityEngine.Events;
 using System.Collections.Generic;
@@ -64,7 +65,10 @@ public class SerialController
     private bool dropOldMessage;
 
     // Callbacks to be invoked when the serial device connects or disconnects.
-    EditorEvents editorEvents = new EditorEvents();
+    EditorEvents editorEvents;
+
+    // Is connected?
+    private bool isConnected = false;
 
     // Constants used to mark the start and end of a connection. There is no
     // way you can generate clashing messages from your serial device, as I
@@ -82,7 +86,17 @@ public class SerialController
     public List<Action> onDisconnectDynamic = new List<Action>();
     public List<Action<string>> onMessageArriveDynamic = new List<Action<string>>();
 
-    public SerialController(string portName, EditorEvents editorEvents, int baudRate = 9600, int reconnectionDelay = 1000, int maxUnreadMessages = 1, bool dropOldMessage = true)
+    public SerialController()
+    {
+        this.portName = SerialController.GetNewestPort();
+        this.baudRate = 9600;
+        this.reconnectionDelay = 100;
+        this.maxUnreadMessages = 10;
+        this.dropOldMessage = true;
+        Initialize();
+    }
+
+    public SerialController(string portName, EditorEvents editorEvents = null, int baudRate = 9600, int reconnectionDelay = 100, int maxUnreadMessages = 10, bool dropOldMessage = true)
     {
         this.portName = portName;
         this.baudRate = baudRate;
@@ -93,6 +107,10 @@ public class SerialController
         Initialize();
     }
 
+    public void IsPortStillConnected()
+    {
+    }
+
     // ------------------------------------------------------------------------
     // Invoked whenever the SerialController gameobject is activated.
     // It creates a new thread that tries to connect to the serial device
@@ -100,12 +118,7 @@ public class SerialController
     // ------------------------------------------------------------------------
     private void Initialize()
     {
-        // string[] ports = SerialPort.GetPortNames();
-        // foreach (string port in ports)
-        // {
-        //     Debug.Log(port);
-        // }
-
+        Debug.Log("Initializing SerialController with port: " + portName);
         serialThread = new SerialThreadLines(portName,
                                              baudRate,
                                              reconnectionDelay,
@@ -121,6 +134,10 @@ public class SerialController
     // ------------------------------------------------------------------------
     public void Dispose()
     {
+        // If we aren't connected, don't try to disconnect
+        if(!isConnected)
+            return;
+
         // If there is a user-defined tear-down function, execute it before
         // closing the underlying COM port.
         Disconnected();
@@ -138,8 +155,10 @@ public class SerialController
         if (thread != null)
         {
             thread.Join();
+            thread.Abort();
             thread = null;
         }
+
     }
 
     // ------------------------------------------------------------------------
@@ -152,8 +171,11 @@ public class SerialController
     {
         // Read the next message from the queue
         string message = (string)serialThread.ReadMessage();
+        // TODO investigate empty message spam after disconnect
         if (message == null)
             return;
+
+        Debug.Log(message);
 
         // Check if the message is plain data or a connect/disconnect event.
         if (ReferenceEquals(message, SERIAL_DEVICE_CONNECTED)) Connected();
@@ -210,7 +232,8 @@ public class SerialController
     // The connected event is triggered when the serial device is connected.
     public void Connected()
     {
-        editorEvents.onConnected?.Invoke();
+        isConnected = true;
+        editorEvents?.onConnected?.Invoke();
 
         foreach (Action action in this.onConnectDynamic)
         {
@@ -221,7 +244,8 @@ public class SerialController
     // The disconnected event is triggered when the serial device is disconnected.
     public void Disconnected()
     {
-        editorEvents.onDisconnected?.Invoke();
+        isConnected = false;
+        editorEvents?.onDisconnected?.Invoke();
 
         foreach (Action action in this.onDisconnectDynamic)
         {
@@ -232,12 +256,47 @@ public class SerialController
     // The message arrived event is triggered when a new message arrives from the serial device.
     public void MessageArrived(string message)
     {
-        editorEvents.onMessageArrived?.Invoke(message);
+        editorEvents?.onMessageArrived?.Invoke(message);
 
         foreach (Action<string> action in this.onMessageArriveDynamic)
         {
             action.Invoke(message);
         }
+    }
+
+    public static string[] GetPortNames()
+    {
+        return SerialPort.GetPortNames();
+    }
+
+    public static string GetNewestPort()
+    {
+        string[] ports = GetPortNames();
+        if (ports.Length == 0)
+        {
+            return null;
+        }
+
+        NewestPort newestPort = new NewestPort();
+        newestPort.name = ports[0];
+        newestPort.lastModified = File.GetLastWriteTime(newestPort.name);
+        for (int i = 1; i < ports.Length; i++)
+        {
+            DateTime lastModified = File.GetLastWriteTime(ports[i]);
+            if (lastModified > newestPort.lastModified)
+            {
+                newestPort.name = ports[i];
+                newestPort.lastModified = lastModified;
+            }
+        }
+
+        return newestPort.name;
+    }
+
+    private class NewestPort
+    {
+        public string name;
+        public DateTime lastModified;
     }
 }
 

@@ -146,7 +146,7 @@ public abstract class AbstractSerialThread
                     while (!IsStopRequested())
                         RunOnce();
                 }
-                catch (Exception ioe)
+                catch
                 {
                     // A disconnection happened, or there was a problem
                     // reading/writing to the device. Log the detailed message
@@ -193,8 +193,8 @@ public abstract class AbstractSerialThread
         serialPort = new SerialPort(portName, baudRate);
         serialPort.ReadTimeout = readTimeout;
         serialPort.WriteTimeout = writeTimeout;
-        // serialPort.DtrEnable = true;
-        // serialPort.RtsEnable = true;
+        serialPort.DtrEnable = true;
+        serialPort.RtsEnable = true;
         serialPort.Open();
 
         if (enqueueStatusMessages)
@@ -272,7 +272,7 @@ public abstract class AbstractSerialThread
                     {
                         droppedMessage = inputMessage;
                     }
-                    // Debug.LogWarning("Queue is full. Dropping message: " + droppedMessage);
+                    Debug.LogWarning("Queue is full. Dropping message: " + droppedMessage);
                 }
             }
         }

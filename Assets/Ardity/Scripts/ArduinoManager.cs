@@ -4,6 +4,7 @@ using UnityEngine;
 
 public class ArduinoManager : MonoBehaviour
 {
+    public bool AutoFindPort = true;
     public string portName = "/dev/ttyUSB0";
     [SerializeField]
     public SerialController.EditorEvents editorEvents;
@@ -11,21 +12,23 @@ public class ArduinoManager : MonoBehaviour
 
     private void OnEnable()
     {
+        if(AutoFindPort)
+            portName = SerialController.GetNewestPort();
         serialController = new SerialController(portName, editorEvents);
     }
 
     private void OnDisable()
     {
-        serialController.Dispose();
+        serialController?.Dispose();
     }
 
     private void Update()
     {
-        serialController.UpdateMessageQueue();
+        serialController?.UpdateMessageQueue();
     }
 
     public void SendToArduino(string message)
     {
-        serialController.SendSerialMessage(message);
+        serialController?.SendSerialMessage(message + "\r\n");
     }
 }
