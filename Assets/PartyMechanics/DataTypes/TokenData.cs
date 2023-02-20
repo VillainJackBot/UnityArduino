@@ -8,12 +8,12 @@ public class TokenData
 {
     // A slightly lazy set of public definitions, but good enough for now.
     // dd -> Dragon's den
-    // hv -> ?
+    // hv -> Heroes and villains
     public bool     hv_npcs_alive = true;
     public bool     hv_quest_complete = false;
     public bool     dd_won = false;
     public int      pandoras_box = 5;
-    public int      dd_equiped_index = 0;
+    public int      dd_equipped_index = 0;
     public string   color_code = "red";
     public string[] dd_items = new string[2]{"sword", "armor"};
 
