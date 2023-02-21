@@ -70,6 +70,9 @@ public class SerialController
     // Is connected?
     private bool isConnected = false;
 
+    // Message debug enabled
+    private bool messageDebug = false;
+
     // Constants used to mark the start and end of a connection. There is no
     // way you can generate clashing messages from your serial device, as I
     // compare the references of these strings, no their contents. So if you
@@ -107,8 +110,9 @@ public class SerialController
         Initialize();
     }
 
-    public void IsPortStillConnected()
+    public void EnableDebug(bool state)
     {
+        messageDebug = state;
     }
 
     // ------------------------------------------------------------------------
@@ -134,13 +138,9 @@ public class SerialController
     // ------------------------------------------------------------------------
     public void Dispose()
     {
-        // If we aren't connected, don't try to disconnect
-        if(!isConnected)
-            return;
-
         // If there is a user-defined tear-down function, execute it before
         // closing the underlying COM port.
-        Disconnected();
+        if(isConnected) Disconnected();
 
         // The serialThread reference should never be null at this point,
         // unless an Exception happened in the OnEnable(), in which case I've
@@ -155,10 +155,9 @@ public class SerialController
         if (thread != null)
         {
             thread.Join();
-            thread.Abort();
+            // thread.Abort();
             thread = null;
         }
-
     }
 
     // ------------------------------------------------------------------------
@@ -172,15 +171,16 @@ public class SerialController
         // Read the next message from the queue
         string message = (string)serialThread.ReadMessage();
         // TODO investigate empty message spam after disconnect
-        if (message == null)
+        if (String.IsNullOrEmpty(message) || message.Length < 1)
             return;
 
-        Debug.Log(message);
+        if(messageDebug)
+            Debug.Log(message);
 
         // Check if the message is plain data or a connect/disconnect event.
-        if (ReferenceEquals(message, SERIAL_DEVICE_CONNECTED)) Connected();
-        else if (ReferenceEquals(message, SERIAL_DEVICE_DISCONNECTED)) Disconnected();
-        else MessageArrived(message);
+        if (ReferenceEquals(message, SERIAL_DEVICE_CONNECTED) && !isConnected) Connected();
+        else if (ReferenceEquals(message, SERIAL_DEVICE_DISCONNECTED) && isConnected) Disconnected();
+        else if(isConnected) MessageArrived(message);
     }
 
     // ------------------------------------------------------------------------
@@ -277,26 +277,23 @@ public class SerialController
             return null;
         }
 
-        NewestPort newestPort = new NewestPort();
-        newestPort.name = ports[0];
-        newestPort.lastModified = File.GetLastWriteTime(newestPort.name);
-        for (int i = 1; i < ports.Length; i++)
+        string name = ports[0];
+        DateTime mostRecent = File.GetLastWriteTime(name);
+        foreach (string port in ports)
         {
-            DateTime lastModified = File.GetLastWriteTime(ports[i]);
-            if (lastModified > newestPort.lastModified)
+            DateTime lastWrite = File.GetLastWriteTime(port);
+            if (lastWrite > mostRecent)
             {
-                newestPort.name = ports[i];
-                newestPort.lastModified = lastModified;
+                mostRecent = lastWrite;
+                name = port;
             }
         }
-
-        return newestPort.name;
+        return name;
     }
 
-    private class NewestPort
+    public bool IsConnected()
     {
-        public string name;
-        public DateTime lastModified;
+        return isConnected;
     }
 }
 
