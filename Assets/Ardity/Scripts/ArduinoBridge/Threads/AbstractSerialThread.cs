@@ -118,6 +118,12 @@ public abstract class AbstractSerialThread
         outputQueue.Enqueue(message);
     }
 
+    public void EmptyQueues()
+    {
+        inputQueue.Clear();
+        outputQueue.Clear();
+    }
+
 
     /**************************************************************************
      * Methods intended to be invoked from the Ardity thread (the one

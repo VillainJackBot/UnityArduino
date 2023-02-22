@@ -8,7 +8,6 @@ public enum TokenState
     scanning,
     readingData,
     gameRunning,
-    gameExit,
     writingData,
     ejecting,
 }
@@ -18,37 +17,43 @@ public class TokenReader : MonoBehaviour
 {
     private ArduinoManager arduinoManager;
     private TokenState tokenState = TokenState.disconnected;
+    private float timeSinceScanPole = 0.0f;
 
     private void Start()
     {
         arduinoManager = GetComponent<ArduinoManager>();
         arduinoManager.SubscribeToMessages(OnMessageArrive);
         arduinoManager.SubscribeToConnected(OnConnected);
-        arduinoManager.SubscribeToDisconnected(OnDisconnected);
     }
 
     private void OnConnected()
     {
         Debug.Log("Connected to Arduino");
         tokenState = TokenState.scanning;
+
+        // Wait 1 second
+        StartCoroutine(WaitAndScan());
+    }
+
+    private IEnumerator WaitAndScan()
+    {
+        yield return new WaitForSeconds(1.0f);
         arduinoManager.SendToArduino("scan");
     }
-
-    private void OnDisconnected() 
-    {
-        Debug.Log("Disconnected from Arduino");
-    }
-
 
     private void OnDestroy()
     {
         arduinoManager?.UnsubscribeFromMessages(OnMessageArrive);
         arduinoManager?.UnsubscribeFromConnected(OnConnected);
-        arduinoManager?.UnsubscribeFromDisconnected(OnDisconnected);
     }
 
     private void OnMessageArrive(string message)
     {
+        // If the arduino dies while scanning, we have to keep track
+        if(tokenState == TokenState.scanning || tokenState == TokenState.readingData || tokenState == TokenState.writingData) {
+            timeSinceScanPole = 0.0f;
+        }
+
         // We want to start scanning if the arduino is available
         if(tokenState == TokenState.scanning && ScanSucceeded(message)) {
             Debug.Log("--- Scan succeeded ---");
@@ -60,13 +65,6 @@ public class TokenReader : MonoBehaviour
         if(tokenState == TokenState.readingData && IsMessageJSON(message)) {
             Debug.Log("--- Read data succeeded ---");
             tokenState = TokenState.gameRunning;
-            Debug.Log(message);
-        }
-
-        if(tokenState == TokenState.gameExit) {
-            Debug.Log("--- Game exit, start a data write ---");
-            arduinoManager.SendToArduino("writeMaster");
-            tokenState = TokenState.writingData;
         }
 
         // We want to write data if the player ends the game
@@ -74,13 +72,27 @@ public class TokenReader : MonoBehaviour
             Debug.Log("--- Write data succeeded ---");
             tokenState = TokenState.ejecting;
             arduinoManager.SendToArduino("eject");
+
+            // Wait two seconds and then send "uneject"
+            StartCoroutine(WaitAndUneject());
+        }
+    }
+
+    private void Update() 
+    {
+        if(tokenState == TokenState.scanning || tokenState == TokenState.readingData || tokenState == TokenState.writingData) {
+            timeSinceScanPole += Time.deltaTime;
+            if(timeSinceScanPole > 5.0f) {
+                Debug.LogWarning("The arduino is not responding!");
+                tokenState = TokenState.disconnected;
+                arduinoManager.DisconnectManually();
+                timeSinceScanPole = 0.0f;
+            }
         }
 
-        // We want to start scanning again if the player ejects the token
-        if(tokenState == TokenState.ejecting && EjectSucceeded(message)) {
-            Debug.Log("--- Eject succeeded ---");
-            tokenState = TokenState.scanning;
-            arduinoManager.SendToArduino("scan");
+        if(Input.GetKeyDown(KeyCode.Space)) {
+            Debug.Log("Sending (0x04)");
+            arduinoManager.SendToArduinoRaw(char.ConvertFromUtf32(0x00000004));
         }
     }
 
@@ -99,12 +111,6 @@ public class TokenReader : MonoBehaviour
         return message.Contains("write success");
     }
 
-    private bool EjectSucceeded(string message)
-    {
-        return true;
-        // return message.Contains("eject success");
-    }
-
     // Public interface -- -- -- 
     public void EjectCoin()
     {
@@ -113,7 +119,17 @@ public class TokenReader : MonoBehaviour
             return;
         }
 
-        tokenState = TokenState.gameExit;
-        arduinoManager.SendToArduino("write: {\"name\": \"test\"}");
+        tokenState = TokenState.writingData;
+        arduinoManager.SendToArduino("writeMaster");
+        Debug.Log("--- Game exit, start a data write ---");
+    }
+
+    private IEnumerator WaitAndUneject()
+    {
+        yield return new WaitForSeconds(2f);
+        arduinoManager.SendToArduino("uneject");
+        Debug.Log("--- Eject succeeded ---");
+        tokenState = TokenState.scanning;
+        arduinoManager.SendToArduino("scan");
     }
 }

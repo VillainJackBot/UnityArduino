@@ -11,10 +11,12 @@ public class ArduinoManager : MonoBehaviour
 
     [SerializeField]
     public SerialController.EditorEvents editorEvents;
-    private SerialController serialController;
+    private SerialController serialController = new();
     private string defaultPortType = "/dev/ttyS5";
 
     private void OnEnable() {
+        serialController = new(editorEvents);
+
         if(AutoFindPort) {
             StartCoroutine(ScanForNewControllers());
         } else {
@@ -29,7 +31,7 @@ public class ArduinoManager : MonoBehaviour
 
     private void OnDisable()
     {
-        serialController?.Dispose();
+        serialController?.Disconnect();
     }
 
     public IEnumerator ScanForNewControllers()
@@ -39,23 +41,24 @@ public class ArduinoManager : MonoBehaviour
             yield return new WaitForSeconds(0.5f);
         }
         Debug.Log("Found new controller on port: " + portName);
+        yield return new WaitForSeconds(0.5f);
         CreateSerialConnection(portName);
     }
 
     private void CreateSerialConnection(string port) 
     {
-        if(serialController != null) serialController.Dispose();
-        serialController = new SerialController(port, editorEvents);
-
-        serialController.onDisconnectDynamic.Add(() => {
-            Debug.Log("Disconnected from Arduino");
-            StartCoroutine(ScanForNewControllers());
-        });
+        serialController.Connect(port);
+        serialController.EnableDebug(debug);
     }
 
     public void SendToArduino(string message)
     {
         serialController?.SendSerialMessage(message + "\r\n");
+    }
+
+    public void SendToArduinoRaw(string message)
+    {
+        serialController?.SendSerialMessage(message);
     }
 
     public void SubscribeToMessages(Action<string> callback)
@@ -88,4 +91,8 @@ public class ArduinoManager : MonoBehaviour
         serialController?.onDisconnectDynamic.Remove(callback);
     }
 
+    public void DisconnectManually()
+    {
+        StartCoroutine(ScanForNewControllers());
+    }
 }

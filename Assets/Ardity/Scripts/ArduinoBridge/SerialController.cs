@@ -89,25 +89,13 @@ public class SerialController
     public List<Action> onDisconnectDynamic = new List<Action>();
     public List<Action<string>> onMessageArriveDynamic = new List<Action<string>>();
 
-    public SerialController()
+    public SerialController(EditorEvents editorEvents = null, int baudRate = 9600, int reconnectionDelay = 100, int maxUnreadMessages = 10, bool dropOldMessage = true)
     {
-        this.portName = SerialController.GetNewestPort();
-        this.baudRate = 9600;
-        this.reconnectionDelay = 100;
-        this.maxUnreadMessages = 10;
-        this.dropOldMessage = true;
-        Initialize();
-    }
-
-    public SerialController(string portName, EditorEvents editorEvents = null, int baudRate = 9600, int reconnectionDelay = 100, int maxUnreadMessages = 10, bool dropOldMessage = true)
-    {
-        this.portName = portName;
         this.baudRate = baudRate;
         this.reconnectionDelay = reconnectionDelay;
         this.maxUnreadMessages = maxUnreadMessages;
         this.dropOldMessage = dropOldMessage;
         this.editorEvents = editorEvents;
-        Initialize();
     }
 
     public void EnableDebug(bool state)
@@ -130,6 +118,17 @@ public class SerialController
                                              dropOldMessage);
         thread = new Thread(new ThreadStart(serialThread.RunForever));
         thread.Start();
+    }
+
+    public void Connect(string portName) {
+        this.portName = portName;
+        if(IsConnected()) Disconnect();
+        Initialize();
+    }
+
+    public void Disconnect() 
+    {
+        Dispose();
     }
 
     // ------------------------------------------------------------------------
@@ -168,14 +167,18 @@ public class SerialController
     // ------------------------------------------------------------------------
     public void UpdateMessageQueue()
     {
+        if(serialThread == null) return;
+
         // Read the next message from the queue
         string message = (string)serialThread.ReadMessage();
+
         // TODO investigate empty message spam after disconnect
         if (String.IsNullOrEmpty(message) || message.Length < 1)
             return;
 
-        if(messageDebug)
+        if(messageDebug) {
             Debug.Log(message);
+        }
 
         // Check if the message is plain data or a connect/disconnect event.
         if (ReferenceEquals(message, SERIAL_DEVICE_CONNECTED) && !isConnected) Connected();
