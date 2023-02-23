@@ -174,6 +174,8 @@ public abstract class AbstractSerialThread
                 }
             }
 
+            Debug.Log("This thread should be closed:" + Thread.CurrentThread.ManagedThreadId);
+
             // Before closing the COM port, give the opportunity for all messages
             // from the output queue to reach the other endpoint.
             while (outputQueue.Count != 0)
@@ -205,6 +207,9 @@ public abstract class AbstractSerialThread
 
         if (enqueueStatusMessages)
             inputQueue.Enqueue(SerialController.SERIAL_DEVICE_CONNECTED);
+
+        // Print the thread ID to the console to make sure that we are actually killing threads.
+        Debug.Log("This thread is trying to connect. " + Thread.CurrentThread.ManagedThreadId);
     }
 
     // ------------------------------------------------------------------------
@@ -232,10 +237,8 @@ public abstract class AbstractSerialThread
     // ------------------------------------------------------------------------
     private bool IsStopRequested()
     {
-        lock (this)
-        {
-            return stopRequested;
-        }
+
+        return stopRequested;
     }
 
     // ------------------------------------------------------------------------

@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Events;
 
 public enum TokenState
 {
@@ -15,12 +16,15 @@ public enum TokenState
 [RequireComponent(typeof(ArduinoManager))]
 public class TokenReader : MonoBehaviour
 {
+    public UnityEvent OnGameStart;
+
     private ArduinoManager arduinoManager;
     private TokenState tokenState = TokenState.disconnected;
     private float timeSinceScanPole = 0.0f;
 
     private void Start()
     {
+        Debug.Log("Starting token reader");
         arduinoManager = GetComponent<ArduinoManager>();
         arduinoManager.SubscribeToMessages(OnMessageArrive);
         arduinoManager.SubscribeToConnected(OnConnected);
@@ -32,10 +36,10 @@ public class TokenReader : MonoBehaviour
         tokenState = TokenState.scanning;
 
         // Wait 1 second
-        StartCoroutine(WaitAndScan());
+        StartCoroutine(WaitAndScanOnce());
     }
 
-    private IEnumerator WaitAndScan()
+    private IEnumerator WaitAndScanOnce()
     {
         yield return new WaitForSeconds(1.0f);
         arduinoManager.SendToArduino("scan");
@@ -54,17 +58,27 @@ public class TokenReader : MonoBehaviour
             timeSinceScanPole = 0.0f;
         }
 
+        if(tokenState == TokenState.scanning && ScanFailed(message)) {
+            Debug.Log("--- Scan failed ---");
+            arduinoManager.SendToArduino("scan");
+            return;
+        }
+
         // We want to start scanning if the arduino is available
         if(tokenState == TokenState.scanning && ScanSucceeded(message)) {
             Debug.Log("--- Scan succeeded ---");
             tokenState = TokenState.readingData;
             arduinoManager.SendToArduino("readMapJSON");
+            return;
         }
 
         // We want to read data if the scan is a success
         if(tokenState == TokenState.readingData && IsMessageJSON(message)) {
+            Token.Publish(message);
             Debug.Log("--- Read data succeeded ---");
             tokenState = TokenState.gameRunning;
+            OnGameStart.Invoke();
+            return;
         }
 
         // We want to write data if the player ends the game
@@ -73,8 +87,18 @@ public class TokenReader : MonoBehaviour
             tokenState = TokenState.ejecting;
             arduinoManager.SendToArduino("eject");
 
+            Token.Invalidate();
             // Wait two seconds and then send "uneject"
             StartCoroutine(WaitAndUneject());
+            return;
+        }
+
+        if(Crashed(message)) {
+            Debug.Log("--- Arduino Crashed ---");
+            Debug.Log(message);
+            Token.Invalidate();
+            arduinoManager.SendToArduinoRaw(char.ConvertFromUtf32(0x00000004));
+            tokenState = TokenState.disconnected;
         }
     }
 
@@ -89,11 +113,6 @@ public class TokenReader : MonoBehaviour
                 timeSinceScanPole = 0.0f;
             }
         }
-
-        if(Input.GetKeyDown(KeyCode.Space)) {
-            Debug.Log("Sending (0x04)");
-            arduinoManager.SendToArduinoRaw(char.ConvertFromUtf32(0x00000004));
-        }
     }
 
     private bool IsMessageJSON(string message)
@@ -103,12 +122,22 @@ public class TokenReader : MonoBehaviour
 
     private bool ScanSucceeded(string message)
     {
-        return message.Contains("UID");
+        return message.Contains("scan success");
+    }
+
+    private bool ScanFailed(string message)
+    {
+        return message.Contains("scan failed");
     }
 
     private bool WriteSucceeded(string message)
     {
         return message.Contains("write success");
+    }
+
+    private bool Crashed(string message)
+    {
+        return message.Contains("Traceback") || message.Contains("REPL");
     }
 
     // Public interface -- -- -- 
@@ -120,7 +149,8 @@ public class TokenReader : MonoBehaviour
         }
 
         tokenState = TokenState.writingData;
-        arduinoManager.SendToArduino("writeMaster");
+        Token.Data.pandoras_box = 3;
+        arduinoManager.SendToArduino("updateJSON:" + Token.Data.ToJSON());
         Debug.Log("--- Game exit, start a data write ---");
     }
 

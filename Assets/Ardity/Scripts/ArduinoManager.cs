@@ -11,11 +11,17 @@ public class ArduinoManager : MonoBehaviour
 
     [SerializeField]
     public SerialController.EditorEvents editorEvents;
-    private SerialController serialController = new();
+    private SerialController serialController = null;
     private string defaultPortType = "/dev/ttyS5";
 
-    private void OnEnable() {
+    private void Awake()
+    {
+        // if(serialController != null) SendToArduinoRaw(char.ConvertFromUtf32(0x00000004));
         serialController = new(editorEvents);
+    }
+
+    private void OnEnable() {
+        Debug.Log("Starting Arduino Manager");
 
         if(AutoFindPort) {
             StartCoroutine(ScanForNewControllers());
@@ -31,7 +37,12 @@ public class ArduinoManager : MonoBehaviour
 
     private void OnDisable()
     {
-        serialController?.Disconnect();
+        serialController?.Dispose();
+    }
+
+    private void OnDestroy()
+    {
+        serialController?.Dispose();
     }
 
     public IEnumerator ScanForNewControllers()

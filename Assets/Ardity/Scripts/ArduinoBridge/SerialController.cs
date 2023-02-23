@@ -122,15 +122,10 @@ public class SerialController
 
     public void Connect(string portName) {
         this.portName = portName;
-        if(IsConnected()) Disconnect();
+        Dispose();
         Initialize();
     }
-
-    public void Disconnect() 
-    {
-        Dispose();
-    }
-
+    
     // ------------------------------------------------------------------------
     // Invoked whenever the SerialController gameobject is deactivated.
     // It stops and destroys the thread that was reading from the serial device.
@@ -153,8 +148,8 @@ public class SerialController
         // This reference shouldn't be null at this point anyway.
         if (thread != null)
         {
+            Debug.Log("Closing thread: " + thread.ManagedThreadId);
             thread.Join();
-            // thread.Abort();
             thread = null;
         }
     }

@@ -13,9 +13,4 @@ public class DoNotDestroy : MonoBehaviour
             created = true;
         }
     }
-
-    private void OnDestroy()
-    {
-        created = false;
-    }
 }
