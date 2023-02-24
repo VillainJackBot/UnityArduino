@@ -160,6 +160,7 @@ public class TokenReader : MonoBehaviour
         arduinoManager.SendToArduino("uneject");
         Debug.Log("--- Eject succeeded ---");
         tokenState = TokenState.scanning;
+        yield return new WaitForSeconds(1f);
         arduinoManager.SendToArduino("scan");
     }
 }
