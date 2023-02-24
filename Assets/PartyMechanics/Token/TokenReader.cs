@@ -39,10 +39,16 @@ public class TokenReader : MonoBehaviour
         StartCoroutine(WaitAndScanOnce());
     }
 
-    private IEnumerator WaitAndScanOnce()
+    private IEnumerator WaitAndScanOnce(float time = 1.0f)
     {
-        yield return new WaitForSeconds(1.0f);
+        yield return new WaitForSeconds(time);
         arduinoManager.SendToArduino("scan");
+    }
+
+    private IEnumerator WaitAndReadOnce(float time = 1.0f)
+    {
+        yield return new WaitForSeconds(time);
+        arduinoManager.SendToArduino("readMapJSON");
     }
 
     private void OnDestroy()
@@ -68,7 +74,7 @@ public class TokenReader : MonoBehaviour
         if(tokenState == TokenState.scanning && ScanSucceeded(message)) {
             Debug.Log("--- Scan succeeded ---");
             tokenState = TokenState.readingData;
-            arduinoManager.SendToArduino("readMapJSON");
+            StartCoroutine(WaitAndReadOnce());
             return;
         }
 

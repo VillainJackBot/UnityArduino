@@ -27,6 +27,12 @@ public class LoadSceneByName : MonoBehaviour
         LoadScene(sceneName);
     }
 
+    public void LoadSceneInstant(string sceneName)
+    {
+        UnloadAllScenes();
+        UnityEngine.SceneManagement.SceneManager.LoadSceneAsync(sceneName, UnityEngine.SceneManagement.LoadSceneMode.Additive);
+    }
+
     // Load scene additively 
     public void LoadScene(string sceneName, float time = 1.0f)
     {
